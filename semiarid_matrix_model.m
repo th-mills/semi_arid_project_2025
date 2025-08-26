@@ -4,20 +4,24 @@
 N = 50;
 
 % model runs for T time steps
-T = 500;
+T = 350;
 
 % maximum biomass for grass in a cell 
 b_max = 319;
 
 % constants for soil saturation approach
 water_saturation = 100;
-nitrogen_saturation = 15;
+nitrogen_saturation = 10;
 
 % value for which type of rain data is used:
 % 0 for average of 243, 1 for historical, leaving 2 for potential
 % stochastic 
 % rainfall is generated in 'Initialise Model' section below
-rain_type = 1;
+rain_type = 0;
+
+% value for type of initial condition used:
+% 0 for uniform random distribution, 1 for stripes, 2 for spots
+initial_biomass_type = 2;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
@@ -103,7 +107,32 @@ end
 % INITIALISE MODEL
 
 % generate initial biomass distribution
-biomass = b_max*0.3*rand(N^2,1);
+switch initial_biomass_type
+    case 0
+    % uniform random
+    biomass = b_max*0.3*rand(N^2,1);
+
+    case 1
+    % stripes 
+    biomass = 0.6*b_max*rand(N, N);
+    for i=1:N
+        biomass(i,:) = 0.5*(1+sin(16*pi*i/N))*biomass(i,:);
+    end
+    biomass = reshape(biomass, N^2,1);
+
+    case 2
+    % spots
+    biomass = 0.6*b_max*rand(N, N);
+    for i=1:N
+        biomass(i,:) = 0.5*(1+sin(10*pi*i/N))*biomass(i,:);
+    end
+    for j=1:N
+        biomass(:,j) = 0.5*(1+sin(10*pi*j/N))*biomass(:,j);
+    end
+    biomass = reshape(biomass, N^2, 1);
+
+end
+
 % generate initial soil resource distribution
 % used 25 and 0.5 from initial values given in Stewart et al. 
 deep_water(1:N^2, 1) = 25;
@@ -113,7 +142,8 @@ deep_nitrogen(1:N^2, 1) = 0.5;
 r = zeros(T, 1);
 r(1:T, 1) = 243;
 start_year = 0;
-if rain_type == 1
+switch rain_type
+    case 1
     % get the rain data as a matrix, with years in first column and
     % rainfall in second
     raindata = readmatrix("raindat.dat");
@@ -139,7 +169,7 @@ end
 
 % a longer term 0.15 drought (say 20 years) gives wider bands of vegetation
 % closer to Klausmeier-type predications
-r(350:351) = 0.1*243;
+% r(150:155) = 0.1*r(150:155);
 
 
 % start our record of values, each column is one time step
@@ -237,7 +267,7 @@ if tick_size == 0
 end
 
 % find appropriate separation for ten timed outputs
-time_diff = (T - mod(T, 10))/10;
+time_diff = (T - mod(T, 5))/5;
 if time_diff == 0
     time_diff = 1;
 end
@@ -293,6 +323,8 @@ end
 
 % output final biomass as a larger plot for visibility
 figure;
+biomass_out = biomass_record(:, T+1);
+biomass_out = reshape(biomass_out, N, N);
 imagesc(biomass_out)
 colormap(grassmap)
 colorbar
@@ -318,7 +350,6 @@ ylabel("Mean Biomass (g/m2)")
 yline(mean_biomass(T+1,1), "--")
 
 figure;
-disp(r)
 plot(r, 'LineWidth', 1)
 title("Rainfall")
 xlim([0 T])
