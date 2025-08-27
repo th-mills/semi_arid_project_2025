@@ -1,43 +1,54 @@
 % INPUTS
 
 % we work on an N x N grid of cells
-N = 50;
+N = 70;
 
 % model runs for T time steps
-T = 350;
+T = 500;
 
 % maximum biomass for grass in a cell 
 b_max = 319;
 
 % constants for soil saturation approach
 water_saturation = 100;
-nitrogen_saturation = 10;
+nitrogen_saturation = 50;
 
 % value for which type of rain data is used:
-% 0 for average of 243, 1 for historical, leaving 2 for potential
-% stochastic 
+% 0 for average of 243, 1 for historical, 2 for repeated historical, 
+% leaving 3 for potential stochastic 
 % rainfall is generated in 'Initialise Model' section below
-rain_type = 1;
+rain_type = 2;
 
 % value for type of initial condition used:
 % 0 for uniform random distribution, 1 for stripes, 2 for spots
-initial_biomass_type = 1;
+initial_biomass_type = 0;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
 
+% paper has:
+% w_m = 0.7; n_m = 0.125; w_e = 3.5; n_e = 0.62
+% given inputs to Stewart et al. model are:
+% w_m = 3.5; n_m = 0.0273; w_e = 17.5; n_e = 0.0273
+% using the values from the model
+
 % add constants for plant behaviour
-water_maintenance = 0.7;
-nitrogen_maintenance = 0.125;
-water_efficiency = 3.5;
-nitrogen_efficiency = 0.62;
+water_maintenance = 3.5;
+nitrogen_maintenance = 0.0273;
+water_efficiency = 17.5;
+nitrogen_efficiency = 0.0273;
 % k is a total non-resource-related mortality rate, i.e. from diseases,
 % grazing, physical damage
 k = 0.1;
 % f is failure rate for propagules to establish themselves
 f = 0.05;
 % max_growth is maximum growth rate for grass in a year
-max_growth = 0.125;
+% paper lists 0.125, while model takes 1.125
+% this is likely a difference in notation, since Creosote bush similarly
+% has 0.09 in paper and 1.09 in model input
+% however the model code appears to use 1.125*biomass as a limit for
+% propagules, so this one is used
+max_growth = 1.125;
 
 % DEFINE FUNCTIONS
 
@@ -138,7 +149,7 @@ switch initial_biomass_type
 
     case 1
     % stripes 
-    biomass = 0.2*b_max*rand(N, N);
+    biomass = 0.35*b_max*rand(N, N);
     for i=1:N
         biomass(i,:) = 0.5*(1+sin(16*pi*i/N))*biomass(i,:);
     end
@@ -167,6 +178,7 @@ r = zeros(T, 1);
 r(1:T, 1) = 243;
 start_year = 0;
 switch rain_type
+    % historical rainfall
     case 1
     % get the rain data as a matrix, with years in first column and
     % rainfall in second
@@ -180,6 +192,22 @@ switch rain_type
     else
         r(1:T) = raindata(1:T, 2);
     end
+    
+    % repeated historical rainfall
+    case 2
+        raindata = readmatrix("raindat.dat");
+        % change our start year to that of the historical data
+        start_year = raindata(1, 1);
+        len = size(raindata, 1);
+        % get quotient and remainder of T / raindata length
+        remainder = mod(T, len);
+        quotient = (T-remainder)/len;
+        % add repeated historical record
+        for n=0:(quotient-1)
+            r(n*len+1:(n+1)*len) = raindata(:, 2);
+        end
+        % add final section which is less than the full raindata length
+        r(quotient*len+1:quotient*len+remainder) = raindata(1:remainder, 2); 
 end
 
 % manually add droughts (fun to play with!)
@@ -217,7 +245,7 @@ for t = 1:T
 
     % find final surface resource distributions using local transport and
     % availability
-    surface_water = r(t) + sigma*water_availability;
+    surface_water = (r(t) + sigma*water_availability);
     surface_nitrogen = d(t) + sigma*nitrogen_availability;
 
     % calculate WR and NR for use in biomass calculations
@@ -291,7 +319,7 @@ if tick_size == 0
 end
 
 % find appropriate separation for ten timed outputs
-time_diff = (T - mod(T, 5))/5;
+time_diff = (T - mod(T, 10))/10;
 if time_diff == 0
     time_diff = 1;
 end
@@ -300,6 +328,9 @@ for t=1:time_diff:T+1
     % get current output row vectors and convert to N x N matrices
     biomass_out = biomass_record(:,t);
     biomass_out = reshape(biomass_out, N, N);
+    % cutting out the top line, which is overly vegetated due to boundary
+    % conditions
+    biomass_out = biomass_out(2:N, 1:N);
 
     deep_water_out = deep_water_record(:,t);
     deep_water_out = reshape(deep_water_out, N, N);
@@ -315,7 +346,7 @@ for t=1:time_diff:T+1
     imagesc(biomass_out)
     colormap(ax1, grassmap)
     colorbar
-    clim([0 b_max])
+    % clim([0 b_max])
     axis square
     axis ij
     xticks(0:tick_size:N)
@@ -326,7 +357,7 @@ for t=1:time_diff:T+1
     imagesc(deep_water_out)
     colormap(ax2, watermap)
     colorbar
-    clim([0 water_saturation])
+    % clim([0 water_saturation])
     axis square
     axis ij
     xticks(0:tick_size:N)
@@ -337,7 +368,7 @@ for t=1:time_diff:T+1
     imagesc(deep_nitrogen_out)
     colormap(ax3, nitrogenmap)
     colorbar
-    clim([0 nitrogen_saturation])
+    % clim([0 nitrogen_saturation])
     axis square
     axis ij
     xticks(0:tick_size:N)
@@ -349,10 +380,11 @@ end
 figure;
 biomass_out = biomass_record(:, T+1);
 biomass_out = reshape(biomass_out, N, N);
+biomass_out = biomass_out(2:N, 1:N);
 imagesc(biomass_out)
 colormap(grassmap)
 colorbar
-clim([0 b_max])
+% clim([0 b_max])
 axis square
 axis ij
 xticks(0:tick_size:N)
@@ -379,7 +411,7 @@ title("Rainfall")
 xlim([0 T])
 xticks(0:time_diff:T)
 xlabel("Time (years)")
-ylim([0 400])
+ylim([0 450])
 ylabel("Yearly Rainfall (g/m2)")
 
 % output mean soil resources against time, on one pair of axes
@@ -393,11 +425,11 @@ xlim([0 T])
 yyaxis left
 plot(mean_water, 'LineWidth', 1)
 ylabel("Mean Soil Water (g/m2)")
-ylim([0 water_saturation])
+% ylim([0 water_saturation])
 % yline(mean_water(T+1, 1), "--")
 
 yyaxis right
 plot(mean_nitrogen, 'LineWidth', 1)
 ylabel("Mean Soil Nitrogen (g/m2)")
-ylim([0 nitrogen_saturation])
+% ylim([0 nitrogen_saturation])
 % yline(mean_nitrogen(T+1, 1), ":")
