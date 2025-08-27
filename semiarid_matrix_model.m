@@ -17,11 +17,11 @@ nitrogen_saturation = 10;
 % 0 for average of 243, 1 for historical, leaving 2 for potential
 % stochastic 
 % rainfall is generated in 'Initialise Model' section below
-rain_type = 0;
+rain_type = 1;
 
 % value for type of initial condition used:
 % 0 for uniform random distribution, 1 for stripes, 2 for spots
-initial_biomass_type = 2;
+initial_biomass_type = 1;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
@@ -42,7 +42,7 @@ max_growth = 0.125;
 % DEFINE FUNCTIONS
 
 % function for calculating availability
-function av = availability(bio, res, N, bio_max)
+function av = resource_availability(bio, res, N, bio_max)
     % reshaping into a matrix gives a simpler function, since we are moving
     % downslope and downslope elements would be separated in the vector
     b = reshape(bio, N, N);
@@ -64,6 +64,21 @@ function av = availability(bio, res, N, bio_max)
         % values above it
         av(i,:) = av(i,:) + sigs(i-1,:).*av(i-1,:);
     % output availability as a vector
+    end
+    av = reshape(av, N^2, 1);
+end
+
+function av = propagule_availability(bio, prop, N, bio_max)
+    % function for propagule redistribution, very similar to resource
+    % availability
+    b = reshape(bio, N, N);
+    % propagules are available proportional to biomass, so highly vegetated
+    % spread propagules rather than collecting them
+    av = prop.*(bio./bio_max);
+    av = reshape(av, N, N);
+    sigs = 1 - 0.9.*heaviside(b - 0.1*bio_max);
+    for i=2:N
+        av(i,:) = av(i,:) + sigs(i-1,:).*av(i-1,:);
     end
     av = reshape(av, N^2, 1);
 end
@@ -101,6 +116,15 @@ function sig = generate_sig(bio, N, bio_max)
         sig(i, i+up+right) = 0.05*f(i+up+right);
         % water doesn't have any motion diagonally upwards, so the
         % down-left and down-right cells do not contribute to i 
+
+        % also note this is for maximum gradient relevant to our parameters
+        % any higher (above 10 in Stewart et al.) just has everything flow
+        % downhill without the local transport near biomass
+        % if gradient is less, then transport is linearly interpolated with
+        % uniform spread: 
+        % [0.0625 0.0625 0.0625
+        %  0.0625  0.5   0.0625
+        %  0.0625 0.0625 0.0625]
     end
 end
 
@@ -114,7 +138,7 @@ switch initial_biomass_type
 
     case 1
     % stripes 
-    biomass = 0.6*b_max*rand(N, N);
+    biomass = 0.2*b_max*rand(N, N);
     for i=1:N
         biomass(i,:) = 0.5*(1+sin(16*pi*i/N))*biomass(i,:);
     end
@@ -185,8 +209,8 @@ deep_nitrogen_record(:, 1) = deep_nitrogen;
 for t = 1:T
 
     % produce availability vectors for water and nitrogen
-    water_availability = availability(biomass, r(t), N, b_max);
-    nitrogen_availability = availability(biomass, d(t), N, b_max);
+    water_availability = resource_availability(biomass, r(t), N, b_max);
+    nitrogen_availability = resource_availability(biomass, d(t), N, b_max);
 
     % generate matrix for local transport of resources and propagules
     sigma = generate_sig(biomass, N, b_max);
@@ -211,7 +235,7 @@ for t = 1:T
     propagules = heaviside(intermediate).*intermediate;
 
     % calculate availability from this
-    propagule_availability = availability(biomass, propagules, N, b_max);
+    prop_availability = propagule_availability(biomass, propagules, N, b_max);
         
     % calculate insufficiency terms for the biomass updating equation
     % (this is not in the written form, but makes code more readable)
@@ -235,7 +259,7 @@ for t = 1:T
     deep_nitrogen = nitrogen_saturation.*heaviside(deep_nitrogen - nitrogen_saturation) + heaviside(nitrogen_saturation - deep_nitrogen).*deep_nitrogen;
 
     % update biomass
-    biomass = (1-k)*biomass + (1-f)*propagules + (1-f)*(sigma*propagule_availability) + water_insufficiency + nitrogen_insufficiency;
+    biomass = (1-k)*biomass + (1-f)*propagules + (1-f)*(sigma*prop_availability) + water_insufficiency + nitrogen_insufficiency;
 
     % if any biomass is above the maximum, reduce it to that
     % (note that floating point errors are protected against inside the
