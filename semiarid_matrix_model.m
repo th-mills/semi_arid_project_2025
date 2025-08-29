@@ -1,17 +1,17 @@
 % INPUTS
 
 % we work on an N x N grid of cells
-N = 70;
+N = 50;
 
 % model runs for T time steps
-T = 500;
+T = 800;
 
 % maximum biomass for grass in a cell 
 b_max = 319;
 
 % constants for soil saturation approach
 water_saturation = 100;
-nitrogen_saturation = 50;
+nitrogen_saturation = 5;
 
 % value for which type of rain data is used:
 % 0 for average of 243, 1 for historical, 2 for repeated historical, 
@@ -34,9 +34,9 @@ d(1, 1:T) = 1.5;
 
 % add constants for plant behaviour
 water_maintenance = 3.5;
-nitrogen_maintenance = 0.0273;
+nitrogen_maintenance = 0.125;
 water_efficiency = 17.5;
-nitrogen_efficiency = 0.0273;
+nitrogen_efficiency = 0.62;
 % k is a total non-resource-related mortality rate, i.e. from diseases,
 % grazing, physical damage
 k = 0.1;
@@ -339,14 +339,14 @@ for t=1:time_diff:T+1
     deep_nitrogen_out = reshape(deep_nitrogen_out, N, N);
 
     % create a figure showing biomass and soil resources at each step
-    figure;
+    figure(Name = 't = ' + string(start_year+t-1), NumberTitle = 'off');
     tiledlayout(1,3)
 
     ax1 = nexttile;
     imagesc(biomass_out)
     colormap(ax1, grassmap)
     colorbar
-    % clim([0 b_max])
+    % clim([0 200])
     axis square
     axis ij
     xticks(0:tick_size:N)
@@ -377,7 +377,7 @@ for t=1:time_diff:T+1
 end
 
 % output final biomass as a larger plot for visibility
-figure;
+figure(Name = 'Final Biomass', NumberTitle = 'off');
 biomass_out = biomass_record(:, T+1);
 biomass_out = reshape(biomass_out, N, N);
 biomass_out = biomass_out(2:N, 1:N);
@@ -393,7 +393,7 @@ title("Final Biomass")
 
 % output mean biomass against time, along with rainfall for comparison
 mean_biomass = mean(biomass_record)';
-figure;
+figure(Name = 'Mean Biomass', NumberTitle = 'off');
 plot(mean_biomass, 'LineWidth', 1)
 title("Mean Biomass against Time")
 xlim([0 T])
@@ -405,7 +405,7 @@ ylabel("Mean Biomass (g/m2)")
 % add horizontal line to see convergence
 yline(mean_biomass(T+1,1), "--")
 
-figure;
+figure(Name = 'Rainfall', NumberTitle = 'off');
 plot(r, 'LineWidth', 1)
 title("Rainfall")
 xlim([0 T])
@@ -417,7 +417,7 @@ ylabel("Yearly Rainfall (g/m2)")
 % output mean soil resources against time, on one pair of axes
 mean_water = mean(deep_water_record)'; 
 mean_nitrogen = mean(deep_nitrogen_record)';
-figure;
+figure(Name = 'Soil Resources', NumberTitle = 'off');
 title("Soil Resources against Time")
 xlabel("Time (years)")
 xlim([0 T])
@@ -433,3 +433,33 @@ plot(mean_nitrogen, 'LineWidth', 1)
 ylabel("Mean Soil Nitrogen (g/m2)")
 % ylim([0 nitrogen_saturation])
 % yline(mean_nitrogen(T+1, 1), ":")
+
+
+% code for generating and playing movie of biomass
+% doesn't work particularly well
+frames = T/5;
+tstep = T/frames;
+M(frames+1) = struct('cdata', [], 'colormap', grassmap);
+fig = figure(Name = 'Movie', NumberTitle = 'off');
+axis square
+axis ij
+xlim([1 N-1])
+ylim([1 N-1])
+xticks(0:tick_size:N)
+yticks(0:tick_size:N)
+colormap(grassmap)
+colorbar
+clim([0 200])
+ax = gca;
+ax.NextPlot = 'replaceChildren';
+title 'Biomass over Time'
+for j=1:frames+1
+    movie_out = biomass_record(:, tstep*(j-1)+1);
+    movie_out = reshape(movie_out, N, N);
+    movie_out = movie_out(2:N, 1:N);
+    imagesc(ax, movie_out)
+    xlabel('t = ' + string(tstep*(j-1)))
+    M(j) = getframe(fig);
+end
+framerate = 5;
+movie(fig, M, 4, framerate);
