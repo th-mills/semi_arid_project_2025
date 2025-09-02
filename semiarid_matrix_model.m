@@ -20,8 +20,9 @@ nitrogen_saturation = 5;
 rain_type = 2;
 
 % value for type of initial condition used:
-% 0 for uniform random distribution, 1 for stripes, 2 for spots
-initial_biomass_type = 0;
+% 0 for uniform random distribution, 1 for stripes, 2 for spots, 3 for one
+% central square of biomass, 4 for for biomass around the rim
+initial_biomass_type = 4;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
@@ -49,6 +50,11 @@ f = 0.05;
 % however the model code appears to use 1.125*biomass as a limit for
 % propagules, so this one is used
 max_growth = 1.125;
+
+% transport matrices
+grass_transport = [0 0.1 0; 0.1 -0.5 0.1; 0.05 0.1 0.05];
+empty_transport = [0 0 0; 0 -1 0; 0 1 0];
+
 
 % DEFINE FUNCTIONS
 
@@ -139,38 +145,97 @@ function sig = generate_sig(bio, N, bio_max)
     end
 end
 
+% matrix to create initial N^2 x N^2 local transport matrices, which are
+% then applied to cells by componentwise heaviside 
+function transport = create_transport_constants(N, local_matrix)
+    % take a 3x3 local transport matrix as our input
+    transport = spalloc(N^2, N^2, 7*N^2);
+    for i=1:N^2
+        up = -1;
+        left = -N;
+        right = +N;
+        down = +1;
+        % if at top or bottom, periodic conditions apply
+        if mod(i, N) == 1
+            up = N-1;
+        elseif mod(i, N) == 0 
+            down = 1-N;
+        end
+        % if at left or right border, periodic conditions apply
+        if i <= N
+            left = N*(N-1); 
+        elseif i > N*(N-1)
+            right = -N*(N-1);
+        end
+        % add the relevant edge values to the matrix
+        % i + ... is the origin for the flow, while i is the destination
+        % so entries of matrix are 'flipped' in both directions
+        transport(i, i) = local_matrix(2,2);
+        transport(i, i+up) = local_matrix(3,2);
+        transport(i, i+down) = local_matrix(1,2);
+        transport(i, i+left) = local_matrix(2,3);
+        transport(i, i+right) = local_matrix(2,1);
+        transport(i, i+up+left) = local_matrix(3,3);
+        transport(i, i+up+right) = local_matrix(3,1);
+    end
+end
+
+% function called each time step to create an overall transport matrix
+% using the constant matrices 
+function sig = generate_sig2(bio, bio_max, unvegetated_transport, vegetated_transport)
+    % f is our function for assessing when to use each transport type,
+    % depending on cell content
+    % we use a row matrix and leave the transport matrices as-is to
+    % multiply each column by f(j)
+    f = heaviside(bio - 0.1*bio_max)';
+    sig = f.*vegetated_transport + (1-f).*unvegetated_transport; 
+end
+
 % INITIALISE MODEL
 
 % generate initial biomass distribution
 switch initial_biomass_type
     case 0
-    % uniform random
-    biomass = b_max*0.3*rand(N^2,1);
+        % uniform random
+        biomass = b_max*0.3*rand(N^2,1);
 
     case 1
-    % stripes 
-    biomass = 0.35*b_max*rand(N, N);
-    for i=1:N
-        biomass(i,:) = 0.5*(1+sin(16*pi*i/N))*biomass(i,:);
-    end
-    biomass = reshape(biomass, N^2,1);
+        % stripes 
+        biomass = 0.35*b_max*rand(N, N);
+        for i=1:N
+            biomass(i,:) = 0.5*(1+sin(16*pi*i/N))*biomass(i,:);
+        end
+        biomass = reshape(biomass, N^2,1);
 
     case 2
-    % spots
-    biomass = 0.6*b_max*rand(N, N);
-    for i=1:N
-        biomass(i,:) = 0.5*(1+sin(10*pi*i/N))*biomass(i,:);
-    end
-    for j=1:N
-        biomass(:,j) = 0.5*(1+sin(10*pi*j/N))*biomass(:,j);
-    end
-    biomass = reshape(biomass, N^2, 1);
+        % spots
+        biomass = 0.6*b_max*rand(N, N);
+        for i=1:N
+            biomass(i,:) = 0.5*(1+sin(10*pi*i/N))*biomass(i,:);
+        end
+        for j=1:N
+            biomass(:,j) = 0.5*(1+sin(10*pi*j/N))*biomass(:,j);
+        end
+        biomass = reshape(biomass, N^2, 1);
 
+    case 3
+        % central spot
+        biomass = zeros(N);
+        biomass(0.4*N:0.6*N, 0.4*N:0.6*N) = 0.5*b_max*rand(0.2*N+1);
+        biomass = reshape(biomass, N^2, 1);
+
+    case 4
+        % biomass around sides
+        biomass = 0.3*b_max*rand(N);
+        biomass(0.2*N:0.8*N, 0.2*N:0.8*N) = 0;
+        biomass = reshape(biomass, N^2, 1);
 end
 
 % generate initial soil resource distribution
 % used 25 and 0.5 from initial values given in Stewart et al. 
+deep_water = zeros(N^2, 1);
 deep_water(1:N^2, 1) = 25;
+deep_nitrogen = zeros(N^2, 1);
 deep_nitrogen(1:N^2, 1) = 0.5;
 
 % rainfall uses an average of 243 mm/year by default
@@ -233,6 +298,9 @@ biomass_record(:, 1) = biomass;
 deep_water_record(:, 1) = deep_water;
 deep_nitrogen_record(:, 1) = deep_nitrogen;
 
+empty_transport_constant = create_transport_constants(N, empty_transport);
+grass_transport_constant = create_transport_constants(N, grass_transport);
+
 % MAIN
 for t = 1:T
 
@@ -241,7 +309,8 @@ for t = 1:T
     nitrogen_availability = resource_availability(biomass, d(t), N, b_max);
 
     % generate matrix for local transport of resources and propagules
-    sigma = generate_sig(biomass, N, b_max);
+    % sigma = generate_sig(biomass, N, b_max);
+    sigma = generate_sig2(biomass, b_max, empty_transport_constant, grass_transport_constant);
 
     % find final surface resource distributions using local transport and
     % availability
@@ -437,6 +506,8 @@ ylabel("Mean Soil Nitrogen (g/m2)")
 
 % code for generating and playing movie of biomass
 % doesn't work particularly well
+
+%{
 frames = T/5;
 tstep = T/frames;
 M(frames+1) = struct('cdata', [], 'colormap', grassmap);
@@ -463,3 +534,4 @@ for j=1:frames+1
 end
 framerate = 5;
 movie(fig, M, 4, framerate);
+%}
