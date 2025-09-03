@@ -25,7 +25,7 @@ function main
     water_saturation = 100;
     nitrogen_saturation = 50;
     
-    % ---------- ! likewise for nitrogen
+    % likewise for nitrogen
     d(1, 1:Initial_Conditions.T) = 1.5;
     
     % Grass properties ----------------------------------------------------
@@ -44,12 +44,6 @@ function main
     grass.f = 0.05;
     % maximum growth per year
     grass.max_growth = 1.125;
-    
-    % ---------------------------------------------------------------------
-    
-    
-    % DEFINE FUNCTIONS - temporarily put in the functions file
-    
     
     % INITIALISE MODEL ----------------------------------------------------
     
