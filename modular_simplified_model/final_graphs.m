@@ -1,4 +1,4 @@
-function final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, time_diff)
+function final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, time_diff)
 %FINAL_GRAPHS Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -10,7 +10,7 @@ function final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, t
     imagesc(biomass_out)
     colormap(maps.grassmap)
     colorbar
-    % clim([0 grass.b_max])
+    % clim([0 Grass.b_max])
     axis square
     axis ij
     xticks(0:tick_size:Field.size)
@@ -25,8 +25,8 @@ function final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, t
     xlim([0 Initial_Conditions.T])
     xticks(0:time_diff:Initial_Conditions.T)
     xlabel("Time (years)")
-    ylim([0 grass.b_max])
-    yticks(0:30:grass.b_max)
+    ylim([0 Grass.b_max])
+    yticks(0:30:Grass.b_max)
     ylabel("Mean Biomass (g/m2)")
     % add horizontal line to see convergence
     yline(mean_biomass(Initial_Conditions.T+1,1), "--")
@@ -62,6 +62,8 @@ function final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, t
 
     % code for generating and playing movie of biomass
     % doesn't work particularly well
+
+    %{
     frames = Initial_Conditions.T/5;
     tstep = Initial_Conditions.T/frames;
     M(frames+1) = struct('cdata', [], 'colormap', maps.grassmap);
@@ -88,3 +90,4 @@ function final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, t
     end
     framerate = 5;
     movie(fig, M, 4, framerate);
+    %}
