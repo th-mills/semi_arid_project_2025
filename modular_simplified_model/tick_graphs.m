@@ -23,7 +23,7 @@ function tick_graphs(Initial_Conditions, Field, maps, tick_size, t)
     imagesc(biomass_out)
     colormap(ax1, maps.grassmap)
     colorbar
-    % clim([0 grass.b_max])
+    % clim([0 Grass.b_max])
     axis square
     axis ij
     xticks(0:tick_size:Field.size)
