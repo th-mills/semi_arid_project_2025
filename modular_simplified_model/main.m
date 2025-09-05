@@ -9,7 +9,7 @@ function main
     % w_m = 3.5; n_m = 0.0273; w_e = 17.5; n_e = 0.0273
     % using the values from the model
     
-    % max_growth is maximum growth rate for grass in a year
+    % max_growth is maximum growth rate for Grass in a year
     % paper lists 0.125, while model takes 1.125
     % this is likely a difference in notation, since Creosote bush
     % similarly has 0.09 in paper and 1.09 in model input
@@ -19,7 +19,7 @@ function main
     %  --------------------------------------------------------------------
 
     % take inputs from live script
-    [Initial_Conditions, Field] = inputs;
+    [Initial_Conditions, Field, Matrices] = inputs;
     
     % constants for soil saturation approach
     water_saturation = 100;
@@ -30,38 +30,44 @@ function main
     
     % Grass properties ----------------------------------------------------
     
-    % maximum biomass for grass in a cell 
-    grass.b_max = 319;
+    % maximum biomass for Grass in a cell 
+    Grass.b_max = 319;
     % add constants for plant behaviour
-    grass.water_maintenance = 3.5;
-    grass.nitrogen_maintenance = 0.0273;
-    grass.water_efficiency = 17.5;
-    grass.nitrogen_efficiency = 0.0273;
+    Grass.water_maintenance = 3.5;
+    Grass.nitrogen_maintenance = 0.0273;
+    Grass.water_efficiency = 17.5;
+    Grass.nitrogen_efficiency = 0.0273;
     % k is a total non-resource-related mortality rate, i.e. from diseases,
     % grazing, physical damage
-    grass.k = 0.1;
+    Grass.k = 0.1;
     % f is failure rate for propagules to establish themselves
-    grass.f = 0.05;
+    Grass.f = 0.05;
     % maximum growth per year
-    grass.max_growth = 1.125;
+    Grass.max_growth = 1.125;
     
     % INITIALISE MODEL ----------------------------------------------------
     
     % setup rainfall, biomass record and deep layer resource record
-    [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, grass);
+    [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, Grass);
     
     % MAIN ----------------------------------------------------------------
+
     biomass = Field.biomass_record(:, 1);
     deep_water = Field.deep_water_record(:, 1);
     deep_nitrogen = Field.deep_nitrogen_record(:, 1);
+
+    empty_transport_constant = create_transport_constants(Field.size, Matrices.empty_transport);
+    grass_transport_constant = create_transport_constants(Field.size, Matrices.grass_transport);
+
     for t = 1:Initial_Conditions.T
     
         % produce availability vectors for water and nitrogen
-        water_availability = resource_availability(biomass, rain(t), Field.size, grass.b_max);
-        nitrogen_availability = resource_availability(biomass, d(t), Field.size, grass.b_max);
+        water_availability = resource_availability(biomass, rain(t), Field.size, Grass.b_max);
+        nitrogen_availability = resource_availability(biomass, d(t), Field.size, Grass.b_max);
     
         % generate matrix for local transport of resources and propagules
-        sigma = generate_sig(biomass, Field.size, grass.b_max);
+        % sigma = generate_sig(biomass, Field.size, Grass.b_max);
+        sigma = generate_sig2(biomass, Grass.b_max, empty_transport_constant, grass_transport_constant);
     
         % find final surface resource distributions using local transport
         % and availability
@@ -69,15 +75,15 @@ function main
         surface_nitrogen = d(t) + sigma*nitrogen_availability;
     
         % calculate WR and NR for use in biomass calculations
-        water_res = (surface_water + deep_water - grass.water_maintenance.*biomass)./grass.water_efficiency;
-        nitrogen_res = (surface_nitrogen + deep_nitrogen + grass.nitrogen_maintenance.*biomass)./grass.nitrogen_efficiency;
+        water_res = (surface_water + deep_water - Grass.water_maintenance.*biomass)./Grass.water_efficiency;
+        nitrogen_res = (surface_nitrogen + deep_nitrogen + Grass.nitrogen_maintenance.*biomass)./Grass.nitrogen_efficiency;
     
         % we construct a 3xN^2 matrix where each row is the resource 
         % remaining or maximum growth possible over the cells, by 
         % concatenating row vectors min returns the minimum for each column,
         % i.e. the 'I' value for each cell as a row vector, which we then 
         % change back to a column vector
-        intermediate = min([water_res'; nitrogen_res'; grass.max_growth.*biomass'])';
+        intermediate = min([water_res'; nitrogen_res'; Grass.max_growth.*biomass'])';
     
         % any positive I values mean propagules are produced by a cell, 
         % otherwise we have zero biomass in a cell or insufficient resources 
@@ -85,12 +91,12 @@ function main
         propagules = heaviside(intermediate).*intermediate;
     
         % calculate availability from this
-        prop_availability = propagule_availability(biomass, propagules, Field.size, grass.b_max);
+        prop_availability = propagule_availability(biomass, propagules, Field.size, Grass.b_max);
             
         % calculate insufficiency terms for the biomass updating equation
         % (this is not in the written form, but makes code more readable)
-        water_insufficiency = (1-grass.k)*(grass.water_efficiency/grass.water_maintenance).*(1-heaviside(intermediate)).*heaviside(nitrogen_res-water_res).*intermediate;
-        nitrogen_insufficiency = (1-grass.k)*(grass.nitrogen_efficiency/grass.nitrogen_maintenance).*(1-heaviside(intermediate)).*heaviside(water_res-nitrogen_res).*intermediate;
+        water_insufficiency = (1-Grass.k)*(Grass.water_efficiency/Grass.water_maintenance).*(1-heaviside(intermediate)).*heaviside(nitrogen_res-water_res).*intermediate;
+        nitrogen_insufficiency = (1-Grass.k)*(Grass.nitrogen_efficiency/Grass.nitrogen_maintenance).*(1-heaviside(intermediate)).*heaviside(water_res-nitrogen_res).*intermediate;
         
         % output some values for the central cell, used to investigate deep
         % soil accumulating too much
@@ -99,9 +105,9 @@ function main
         % update our soil resource stores 
         % if our cell is nearly empty, we remove resources to prevent
         % accumulation with:
-        % (1-0.95.*heaviside(0.1*grass.b_max - biomass)).*
-        deep_water = grass.water_efficiency.*(1-0.95.*heaviside(0.1*grass.b_max - biomass)).*(water_res - intermediate);
-        deep_nitrogen = grass.nitrogen_efficiency.*(1-0.95.*heaviside(0.1*grass.b_max - biomass)).*(nitrogen_res - intermediate);
+        % (1-0.95.*heaviside(0.1*Grass.b_max - biomass)).*
+        deep_water = Grass.water_efficiency.*(1-0.95.*heaviside(0.1*Grass.b_max - biomass)).*(water_res - intermediate);
+        deep_nitrogen = Grass.nitrogen_efficiency.*(1-0.95.*heaviside(0.1*Grass.b_max - biomass)).*(nitrogen_res - intermediate);
         
         % manually prevent too much resource from accumulating 
         % brute-force solution to resources accumulating too much in cells
@@ -109,13 +115,13 @@ function main
         deep_nitrogen = nitrogen_saturation.*heaviside(deep_nitrogen - nitrogen_saturation) + heaviside(nitrogen_saturation - deep_nitrogen).*deep_nitrogen;
     
         % update biomass
-        biomass = (1-grass.k)*biomass + (1-grass.f)*propagules + (1-grass.f)*(sigma*prop_availability) + water_insufficiency + nitrogen_insufficiency;
+        biomass = (1-Grass.k)*biomass + (1-Grass.f)*propagules + (1-Grass.f)*(sigma*prop_availability) + water_insufficiency + nitrogen_insufficiency;
     
         % if any biomass is above the maximum, reduce it to that
         % (note that floating point errors are protected against inside the
         % availability function, so we can set directly to maximum, rather 
         % than just below it)
-        biomass = grass.b_max.*heaviside(biomass-grass.b_max) + heaviside(grass.b_max-biomass).*biomass;
+        biomass = Grass.b_max.*heaviside(biomass-Grass.b_max) + heaviside(Grass.b_max-biomass).*biomass;
     
         % ensure that biomass is non-negative
         % (seen a couple instances of a single cell spiralling to large 
@@ -153,5 +159,5 @@ function main
         tick_graphs(Initial_Conditions, Field, maps, tick_size, t)
     end
     
-    final_graphs(Initial_Conditions, Field, grass, rain, maps, tick_size, time_diff)
+    final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, time_diff)
 end
