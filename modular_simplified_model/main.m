@@ -23,7 +23,7 @@ function main
     
     % constants for soil saturation approach
     water_saturation = 100;
-    nitrogen_saturation = 50;
+    nitrogen_saturation = 5;
     
     % likewise for nitrogen
     d(1, 1:Initial_Conditions.T) = 1.5;
