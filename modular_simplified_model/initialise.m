@@ -1,21 +1,21 @@
-function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, grass)
+function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, Grass)
 
     % generate initial biomass distribution
     disp(Initial_Conditions.initial_biomass_type)
     switch Initial_Conditions.initial_biomass_type
 
         case 0 % uniform random
-            biomass = grass.b_max*0.3*rand(Field.size^2,1);
+            biomass = Grass.b_max*0.3*rand(Field.size^2,1);
     
         case 1 % stripes 
-            biomass = 0.35*grass.b_max*rand(Field.size,Field.size);
+            biomass = 0.35*Grass.b_max*rand(Field.size,Field.size);
             for i = 1:Field.size
                 biomass(i,:) = 0.5*(1+sin(16*pi*i/Field.size))*biomass(i,:);
             end
             biomass = reshape(biomass,Field.size^2,1);
     
         case 2 % spots
-            biomass = 0.6*grass.b_max*rand(Field.size,Field.size);
+            biomass = 0.6*Grass.b_max*rand(Field.size,Field.size);
             for i = 1:Field.size
                 biomass(i,:) = 0.5*(1+sin(10*pi*i/Field.size))*biomass(i,:);
             end
@@ -24,31 +24,45 @@ function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Fiel
             end
             biomass = reshape(biomass,Field.size^2, 1);
 
-        case 3 % small patch in centre
-            biomass = zeros(Field.size,Field.size);
-            for i = Field.size/2-5:Field.size/2+5
-                disp(i)
-                for j = Field.size/2-5:Field.size/2+5
-                    biomass(i,j) = grass.b_max*0.3;%*rand();
-                end
-            end
-            biomass = reshape(biomass,Field.size^2, 1);
+        case 3
+            % central spot
+            biomass = zeros(Field.size);
+            biomass(0.4*Field.size:0.6*Field.size, 0.4*Field.size:0.6*Field.size) = 0.5*Grass.b_max*rand(0.2*Field.size+1);
+            biomass = reshape(biomass, Field.size^2, 1);
 
-        case 4 % small hole in centre
-            biomass = 0.3*ones(Field.size,Field.size);
-            for i = Field.size/2-5:Field.size/2+5
-                disp(i)
-                for j = Field.size/2-5:Field.size/2+5
-                    biomass(i,j) = 0;
-                end
-            end
-            biomass = reshape(biomass,Field.size^2, 1);
+        case 4
+            % biomass around sides
+            biomass = 0.3*Grass.b_max*rand(Field.size);
+            biomass(0.2*Field.size:0.8*Field.size, 0.2*Field.size:0.8*Field.size) = 0;
+            biomass = reshape(biomass, Field.size^2, 1);
+
+        % case 3 % small patch in centre
+        %     biomass = zeros(Field.size,Field.size);
+        %     for i = Field.size/2-5:Field.size/2+5
+        %         disp(i)
+        %         for j = Field.size/2-5:Field.size/2+5
+        %             biomass(i,j) = Grass.b_max*0.3;%*rand();
+        %         end
+        %     end
+        %     biomass = reshape(biomass,Field.size^2, 1);
+        % 
+        % case 4 % small hole in centre
+        %     biomass = 0.3*rand(Field.size,Field.size);
+        %     for i = Field.size/2-5:Field.size/2+5
+        %         disp(i)
+        %         for j = Field.size/2-5:Field.size/2+5
+        %             biomass(i,j) = 0;
+        %         end
+        %     end
+        %     biomass = reshape(biomass,Field.size^2, 1);
     
     end
     
     % generate initial soil resource distribution
     % used 25 and 0.5 from initial values given in Stewart et al. 
+    deep_water = zeros(Field.size^2, 1);
     deep_water(1:Field.size^2, 1) = 25;
+    deep_nitrogen = zeros(Field.size^2, 1);
     deep_nitrogen(1:Field.size^2, 1) = 0.5;
     
     % rainfall uses an average of 243 mm/year by default
