@@ -1,10 +1,10 @@
 % INPUTS
 
 % we work on an N x N grid of cells
-N = 50;
+N = 100;
 
 % model runs for T time steps
-T = 800;
+T = 600;
 
 % maximum biomass for grass in a cell 
 b_max = 319;
@@ -22,7 +22,7 @@ rain_type = 2;
 % value for type of initial condition used:
 % 0 for uniform random distribution, 1 for stripes, 2 for spots, 3 for one
 % central square of biomass, 4 for for biomass around the rim
-initial_biomass_type = 4;
+initial_biomass_type = 0;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
@@ -100,6 +100,8 @@ function av = propagule_availability(bio, prop, N, bio_max)
     av = reshape(av, N^2, 1);
 end
 
+% old functions for local transport, replaced by faster ones below
+%{
 function sig = generate_sig(bio, N, bio_max)
     % create empty sparse matrix with space for our (up to) seven nonzero 
     % values per row
@@ -180,9 +182,47 @@ function transport = create_transport_constants(N, local_matrix)
     end
 end
 
+%}
+
+% function to generate large constant matrices for local transport before
+% the main simulation loop; works for any 3x3 local matrix
+function transport = create_transport_constants(N, local_matrix)
+    % create matrices with ones along diagonal, and diagonal lines just
+    % above and below true diagonal
+    central_diagonal = speye(N, N);
+    above_diagonal = spdiags(1, 1, N, N);
+    below_diagonal = spdiags(1, -1, N, N);
+
+    % create block matrices for movement given by each column of
+    % local_matrix
+    left_block = spdiags(flip(local_matrix(:, 1))', -1:1, N, N);
+    middle_block = spdiags(flip(local_matrix(:, 2))', -1:1, N, N);
+    right_block = spdiags(flip(local_matrix(:, 3))', -1:1, N, N);
+    
+    % add vertical periodicity to each of these
+    left_block(N, 1) = local_matrix(1, 1);
+    left_block(1, N) = local_matrix(3, 1);
+    middle_block(N, 1) = local_matrix(1, 2);
+    middle_block(1, N) = local_matrix(3, 2);
+    right_block(N, 1) = local_matrix(1, 3);
+    right_block(1, N) = local_matrix(3, 3);
+    
+    % create empty sparse matrix with space for full local transport
+    % matrices (i.e. 9 connections for each of our N^2 cells in the region)
+    transport = spalloc(N^2, N^2, 9*N^2);
+
+    transport = transport + kron(central_diagonal, middle_block);
+    transport = transport + kron(above_diagonal, left_block);
+    transport = transport + kron(below_diagonal, right_block);
+    
+    % add left-right periodicity with a couple of extra blocks
+    transport((N^2-N+1):N^2, 1:N) = left_block;
+    transport(1:N, (N^2-N+1):N^2) = right_block;
+end
+
 % function called each time step to create an overall transport matrix
 % using the constant matrices 
-function sig = generate_sig2(bio, bio_max, unvegetated_transport, vegetated_transport)
+function sig = generate_sig(bio, bio_max, unvegetated_transport, vegetated_transport)
     % f is our function for assessing when to use each transport type,
     % depending on cell content
     % we use a row matrix and leave the transport matrices as-is to
@@ -309,8 +349,7 @@ for t = 1:T
     nitrogen_availability = resource_availability(biomass, d(t), N, b_max);
 
     % generate matrix for local transport of resources and propagules
-    % sigma = generate_sig(biomass, N, b_max);
-    sigma = generate_sig2(biomass, b_max, empty_transport_constant, grass_transport_constant);
+    sigma = generate_sig(biomass, b_max, empty_transport_constant, grass_transport_constant);
 
     % find final surface resource distributions using local transport and
     % availability
