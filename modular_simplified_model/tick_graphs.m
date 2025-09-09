@@ -1,6 +1,4 @@
-function tick_graphs(Initial_Conditions, Field, maps, tick_size, t)
-%TICK_GRAPHS Summary of this function goes here
-%   Detailed explanation goes here
+function M = tick_graphs(Initial_Conditions, Field, maps, tick_size, t, M)
 
     % get current output row vectors and convert to N x N matrices
     biomass_out = Field.biomass_record(:,t);
