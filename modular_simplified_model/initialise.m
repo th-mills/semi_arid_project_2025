@@ -1,7 +1,6 @@
-function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, Grass)
+function [Initial_Conditions, Field, Wind, rain] = initialise(Initial_Conditions, Field, Grass, Wind)
 
     % generate initial biomass distribution
-    disp(Initial_Conditions.initial_biomass_type)
     switch Initial_Conditions.initial_biomass_type
 
         case 0 % uniform random
@@ -35,6 +34,13 @@ function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Fiel
             biomass = 0.3*Grass.b_max*rand(Field.size);
             biomass(0.2*Field.size:0.8*Field.size, 0.2*Field.size:0.8*Field.size) = 0;
             biomass = reshape(biomass, Field.size^2, 1);
+
+        case 5
+            % uniform random using random100.dat
+            noise = readmatrix('random100.dat');
+            noise = reshape(noise', [], 1);
+            noise = noise(1:Field.size^2);
+            biomass = 60*ones(Field.size^2,1).*noise();
 
         % case 3 % small patch in centre
         %     biomass = zeros(Field.size,Field.size);
@@ -124,4 +130,8 @@ function [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Fiel
     Field.biomass_record(:, 1) = biomass;
     Field.deep_water_record(:, 1) = deep_water;
     Field.deep_nitrogen_record(:, 1) = deep_nitrogen;
+
+    % Set wind direction
+    Wind.grass_transport = rot90(Wind.grass_transport, Wind.direction);
+    Wind.empty_transport = rot90(Wind.empty_transport, Wind.direction);
 end
