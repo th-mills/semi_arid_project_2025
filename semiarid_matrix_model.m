@@ -4,7 +4,7 @@
 N = 100;
 
 % model runs for T time steps
-T = 600;
+T = 3000;
 
 % maximum biomass for grass in a cell 
 b_max = 319;
@@ -23,6 +23,9 @@ rain_type = 2;
 % 0 for uniform random distribution, 1 for stripes, 2 for spots, 3 for one
 % central square of biomass, 4 for for biomass around the rim
 initial_biomass_type = 0;
+
+% apply rough periodicity in availability, 0 for no, 1 for yes
+availability_periodicity = 1;
 
 % likewise for nitrogen
 d(1, 1:T) = 1.5;
@@ -59,7 +62,7 @@ empty_transport = [0 0 0; 0 -1 0; 0 1 0];
 % DEFINE FUNCTIONS
 
 % function for calculating availability
-function av = resource_availability(bio, res, N, bio_max)
+function av = resource_availability(bio, res, N, bio_max, periodic)
     % reshaping into a matrix gives a simpler function, since we are moving
     % downslope and downslope elements would be separated in the vector
     b = reshape(bio, N, N);
@@ -82,10 +85,18 @@ function av = resource_availability(bio, res, N, bio_max)
         av(i,:) = av(i,:) + sigs(i-1,:).*av(i-1,:);
     % output availability as a vector
     end
+
+    if periodic == 1
+        % fudge attempt 1: average out top and bottom rows' availability 
+        average = (av(1,:) + av(N,:))./2;
+        av(1,:) = average;
+        av(N,:) = average;
+    end
+
     av = reshape(av, N^2, 1);
 end
 
-function av = propagule_availability(bio, prop, N, bio_max)
+function av = propagule_availability(bio, prop, N, bio_max, periodic)
     % function for propagule redistribution, very similar to resource
     % availability
     b = reshape(bio, N, N);
@@ -97,6 +108,14 @@ function av = propagule_availability(bio, prop, N, bio_max)
     for i=2:N
         av(i,:) = av(i,:) + sigs(i-1,:).*av(i-1,:);
     end
+
+    if periodic == 1
+        % fudge attempt 1: average out top and bottom rows' availability 
+        average = (av(1,:) + av(N,:))./2;
+        av(1,:) = average;
+        av(N,:) = average;
+    end
+
     av = reshape(av, N^2, 1);
 end
 
@@ -301,8 +320,8 @@ switch rain_type
     % repeated historical rainfall
     case 2
         raindata = readmatrix("raindat.dat");
-        % change our start year to that of the historical data
-        start_year = raindata(1, 1);
+        % leave our start year as 0 since we are going beyond the
+        % historical record 
         len = size(raindata, 1);
         % get quotient and remainder of T / raindata length
         remainder = mod(T, len);
@@ -345,8 +364,8 @@ grass_transport_constant = create_transport_constants(N, grass_transport);
 for t = 1:T
 
     % produce availability vectors for water and nitrogen
-    water_availability = resource_availability(biomass, r(t), N, b_max);
-    nitrogen_availability = resource_availability(biomass, d(t), N, b_max);
+    water_availability = resource_availability(biomass, r(t), N, b_max, availability_periodicity);
+    nitrogen_availability = resource_availability(biomass, d(t), N, b_max, availability_periodicity);
 
     % generate matrix for local transport of resources and propagules
     sigma = generate_sig(biomass, b_max, empty_transport_constant, grass_transport_constant);
@@ -371,7 +390,7 @@ for t = 1:T
     propagules = heaviside(intermediate).*intermediate;
 
     % calculate availability from this
-    prop_availability = propagule_availability(biomass, propagules, N, b_max);
+    prop_availability = propagule_availability(biomass, propagules, N, b_max, availability_periodicity);
         
     % calculate insufficiency terms for the biomass updating equation
     % (this is not in the written form, but makes code more readable)
@@ -545,7 +564,6 @@ ylabel("Mean Soil Nitrogen (g/m2)")
 
 % code for generating and playing movie of biomass
 % doesn't work particularly well
-
 %{
 frames = T/5;
 tstep = T/frames;
