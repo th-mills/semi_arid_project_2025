@@ -1,6 +1,4 @@
 function final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, time_diff)
-%FINAL_GRAPHS Summary of this function goes here
-%   Detailed explanation goes here
 
     % output final biomass as a larger plot for visibility
     figure(Name = 'Final Biomass', NumberTitle = 'off');
@@ -60,14 +58,11 @@ function final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, t
     % ylim([0 nitrogen_saturation])
     % yline(mean_nitrogen(Initial_Conditions.T+1, 1), ":")
 
-    % code for generating and playing movie of biomass
-    % doesn't work particularly well
+    % code for producing an MP4 movie of biomass and nitrogen over time
 
-    %{
     frames = Initial_Conditions.T/5;
     tstep = Initial_Conditions.T/frames;
-    M(frames+1) = struct('cdata', [], 'colormap', maps.grassmap);
-    fig = figure(Name = 'Movie', NumberTitle = 'off');
+    fig = figure(Name = 'Biomass Movie', NumberTitle = 'off');
     axis square
     axis ij
     xlim([1 Field.size-1])
@@ -80,14 +75,43 @@ function final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, t
     ax = gca;
     ax.NextPlot = 'replaceChildren';
     title 'Biomass over Time'
+    v = VideoWriter(['Movies/' Initial_Conditions.biomass_movie], 'MPEG-4');
+    open(v)
     for j=1:frames+1
         movie_out = Field.biomass_record(:, tstep*(j-1)+1);
         movie_out = reshape(movie_out, Field.size, Field.size);
         movie_out = movie_out(2:Field.size, 1:Field.size);
         imagesc(ax, movie_out)
         xlabel('t = ' + string(tstep*(j-1)))
-        M(j) = getframe(fig);
+        frame = getframe(fig);
+        writeVideo(v, frame)
     end
-    framerate = 5;
-    movie(fig, M, 4, framerate);
-    %}
+    close(v)
+
+    frames = Initial_Conditions.T/5;
+    tstep = Initial_Conditions.T/frames;
+    fig = figure(Name = 'Nitrogen Movie', NumberTitle = 'off');
+    axis square
+    axis ij
+    xlim([1 Field.size-1])
+    ylim([1 Field.size-1])
+    xticks(0:tick_size:Field.size)
+    yticks(0:tick_size:Field.size)
+    colormap(maps.nitrogenmap)
+    colorbar
+    clim([0 5])
+    ax = gca;
+    ax.NextPlot = 'replaceChildren';
+    title 'Nitrogen over Time'
+    v = VideoWriter(['Movies/' Initial_Conditions.nitrogen_movie], 'MPEG-4');
+    open(v)
+    for j=1:frames+1
+        movie_out = Field.deep_nitrogen_record(:, tstep*(j-1)+1);
+        movie_out = reshape(movie_out, Field.size, Field.size);
+        movie_out = movie_out(2:Field.size, 1:Field.size);
+        imagesc(ax, movie_out)
+        xlabel('t = ' + string(tstep*(j-1)))
+        frame = getframe(fig);
+        writeVideo(v, frame)
+    end
+    close(v)

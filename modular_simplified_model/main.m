@@ -19,7 +19,7 @@ function main
     %  --------------------------------------------------------------------
 
     % take inputs from live script
-    [Initial_Conditions, Field, Matrices] = inputs;
+    [Initial_Conditions, Field, Grass, Vectors] = inputs;
     
     % constants for soil saturation approach
     water_saturation = 100;
@@ -28,27 +28,10 @@ function main
     % likewise for nitrogen
     d(1, 1:Initial_Conditions.T) = 1.5;
     
-    % Grass properties ----------------------------------------------------
-    
-    % maximum biomass for Grass in a cell 
-    Grass.b_max = 319;
-    % add constants for plant behaviour
-    Grass.water_maintenance = 3.5;
-    Grass.nitrogen_maintenance = 0.0273;
-    Grass.water_efficiency = 17.5;
-    Grass.nitrogen_efficiency = 0.0273;
-    % k is a total non-resource-related mortality rate, i.e. from diseases,
-    % grazing, physical damage
-    Grass.k = 0.1;
-    % f is failure rate for propagules to establish themselves
-    Grass.f = 0.05;
-    % maximum growth per year
-    Grass.max_growth = 1.125;
-    
     % INITIALISE MODEL ----------------------------------------------------
     
     % setup rainfall, biomass record and deep layer resource record
-    [Initial_Conditions, Field, rain] = initialise(Initial_Conditions, Field, Grass);
+    [Initial_Conditions, Field, Vectors.Wind, rain] = initialise(Initial_Conditions, Field, Grass, Vectors.Wind);
     
     % MAIN ----------------------------------------------------------------
 
@@ -56,8 +39,11 @@ function main
     deep_water = Field.deep_water_record(:, 1);
     deep_nitrogen = Field.deep_nitrogen_record(:, 1);
 
-    empty_transport_constant = create_transport_constants(Field.size, Matrices.empty_transport);
-    grass_transport_constant = create_transport_constants(Field.size, Matrices.grass_transport);
+    % ---------- !
+    water_empty_transport_constant = create_transport_constants(Field.size, Vectors.Water.empty_transport);
+    water_grass_transport_constant = create_transport_constants(Field.size, Vectors.Water.grass_transport);
+    wind_empty_transport_constant = create_transport_constants(Field.size, Vectors.Wind.empty_transport);
+    wind_grass_transport_constant = create_transport_constants(Field.size, Vectors.Wind.grass_transport);
 
     for t = 1:Initial_Conditions.T
     
@@ -65,14 +51,15 @@ function main
         water_availability = resource_availability(biomass, rain(t), Field.size, Grass.b_max);
         nitrogen_availability = resource_availability(biomass, d(t), Field.size, Grass.b_max);
     
-        % generate matrix for local transport of resources and propagules
+        % ---------- ! generate matrix for local transport of resources and propagules
         % sigma = generate_sig(biomass, Field.size, Grass.b_max);
-        sigma = generate_sig2(biomass, Grass.b_max, empty_transport_constant, grass_transport_constant);
+        water_sigma = generate_sig2(biomass, Grass.b_max, water_empty_transport_constant, water_grass_transport_constant);
+        wind_sigma = generate_sig2(biomass, Grass.b_max, wind_empty_transport_constant, wind_grass_transport_constant);
     
-        % find final surface resource distributions using local transport
+        % ---------- ! find final surface resource distributions using local transport
         % and availability
-        surface_water = (rain(t) + sigma*water_availability);
-        surface_nitrogen = d(t) + sigma*nitrogen_availability;
+        surface_water = rain(t) + water_sigma*water_availability;
+        surface_nitrogen = d(t) + water_sigma*nitrogen_availability*Vectors.Water.influence_index + wind_sigma*nitrogen_availability*Vectors.Wind.influence_index;
     
         % calculate WR and NR for use in biomass calculations
         water_res = (surface_water + deep_water - Grass.water_maintenance.*biomass)./Grass.water_efficiency;
@@ -114,8 +101,8 @@ function main
         deep_water = water_saturation.*heaviside(deep_water - water_saturation) + heaviside(water_saturation - deep_water).*deep_water;
         deep_nitrogen = nitrogen_saturation.*heaviside(deep_nitrogen - nitrogen_saturation) + heaviside(nitrogen_saturation - deep_nitrogen).*deep_nitrogen;
     
-        % update biomass
-        biomass = (1-Grass.k)*biomass + (1-Grass.f)*propagules + (1-Grass.f)*(sigma*prop_availability) + water_insufficiency + nitrogen_insufficiency;
+        % ---------- ! update biomass
+        biomass = (1-Grass.k)*biomass + (1-Grass.f)*propagules + (1-Grass.f)*(water_sigma*prop_availability*Vectors.Water.influence_index + wind_sigma*prop_availability*Vectors.Wind.influence_index) + water_insufficiency + nitrogen_insufficiency;
     
         % if any biomass is above the maximum, reduce it to that
         % (note that floating point errors are protected against inside the
@@ -155,8 +142,10 @@ function main
     
     % PLOT GRAPHS ---------------------------------------------------------
     
-    for t=1:time_diff:Initial_Conditions.T+1
-        tick_graphs(Initial_Conditions, Field, maps, tick_size, t)
+    if Initial_Conditions.plot_tick_graphs
+        for t=1:time_diff:Initial_Conditions.T+1
+            tick_graphs(Initial_Conditions, Field, maps, tick_size, t)
+        end
     end
     
     final_graphs(Initial_Conditions, Field, Grass, rain, maps, tick_size, time_diff)
