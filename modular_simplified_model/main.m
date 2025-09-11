@@ -59,7 +59,7 @@ function main
         % ---------- ! find final surface resource distributions using local transport
         % and availability
         surface_water = rain(t) + water_sigma*water_availability;
-        surface_nitrogen = d(t) + water_sigma*nitrogen_availability+Vectors.Water.influence_index + wind_sigma*nitrogen_availability+Vectors.Wind.influence_index;
+        surface_nitrogen = d(t) + water_sigma*nitrogen_availability*Vectors.Water.influence_index + wind_sigma*nitrogen_availability*Vectors.Wind.influence_index;
     
         % calculate WR and NR for use in biomass calculations
         water_res = (surface_water + deep_water - Grass.water_maintenance.*biomass)./Grass.water_efficiency;
