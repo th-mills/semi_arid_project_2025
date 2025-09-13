@@ -1,5 +1,5 @@
 % function for calculating availability
-function av = resource_availability(bio, res, N, bio_max)
+function av = resource_availability(bio, res, N, bio_max, periodic)
     % reshaping into a matrix gives a simpler function, since we are moving
     % downslope and downslope elements would be separated in the vector
     b = reshape(bio, N, N);
@@ -22,5 +22,13 @@ function av = resource_availability(bio, res, N, bio_max)
         av(i,:) = av(i,:) + sigs(i-1,:).*av(i-1,:);
     % output availability as a vector
     end
+
+    if periodic
+        % fudge attempt 1: average out top and bottom rows' availability 
+        average = (av(1,:) + av(N,:))./2;
+        av(1,:) = average;
+        av(N,:) = average;
+    end
+    
     av = reshape(av, N^2, 1);
 end
