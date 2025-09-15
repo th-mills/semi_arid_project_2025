@@ -26,14 +26,16 @@ nitrogen_saturation = 5;
 d(1, 1:Initial_Conditions.T) = 1.5;
 
 % setup rainfall, biomass record and deep layer resource record
-[Initial_Conditions, Field, Vectors.Wind, rain] = initialise(Initial_Conditions, Field, Grass, Vectors.Wind);
+[Initial_Conditions, Field, Vectors, rain] = initialise(Initial_Conditions, Field, Grass, Vectors);
 
 % ---------- MAIN ------------------------------------------------------- %
 
+% set field records
 biomass = Field.biomass_record(:, 1);
 deep_water = Field.deep_water_record(:, 1);
 deep_nitrogen = Field.deep_nitrogen_record(:, 1);
 
+% create transport constants for each matrix
 water_empty_transport_constant = create_transport_constants(Field.size, Vectors.Water.empty_transport);
 water_grass_transport_constant = create_transport_constants(Field.size, Vectors.Water.grass_transport);
 wind_empty_transport_constant = create_transport_constants(Field.size, Vectors.Wind.empty_transport);
@@ -125,15 +127,11 @@ maps.nitrogenmap = uint8([50 30 20; 80 40 18; 110 50 16; 140 60 14; 170 70 12; 2
 
 % calculate an appropriate tick size for axes
 tick_size = (Field.size - mod(Field.size, 5))/5;
-if tick_size == 0
-    tick_size = 1;
-end
+if tick_size == 0; tick_size = 1; end
 
 % find appropriate separation for ten timed outputs
 time_diff = (Initial_Conditions.T - mod(Initial_Conditions.T, 10))/10;
-if time_diff == 0
-    time_diff = 1;
-end
+if time_diff == 0; time_diff = 1; end
 
 % tick graphs
 if Graph_Options.plot_tick_graphs
