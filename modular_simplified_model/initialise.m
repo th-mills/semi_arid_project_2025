@@ -1,4 +1,4 @@
-function [Initial_Conditions, Field, Wind, rain] = initialise(Initial_Conditions, Field, Grass, Wind)
+function [Initial_Conditions, Field, Vectors, rain] = initialise(Initial_Conditions, Field, Grass, Vectors)
 
     % generate initial biomass distribution
     switch Initial_Conditions.initial_biomass_type
@@ -131,7 +131,19 @@ function [Initial_Conditions, Field, Wind, rain] = initialise(Initial_Conditions
     Field.deep_water_record(:, 1) = deep_water;
     Field.deep_nitrogen_record(:, 1) = deep_nitrogen;
 
-    % Set wind direction
-    Wind.grass_transport = rot90(Wind.grass_transport, Wind.direction);
-    Wind.empty_transport = rot90(Wind.empty_transport, Wind.direction);
+    % change water matrix based on slope
+    flat_water_matrix = 0.0625*ones(3);
+    flat_water_matrix(2, 2) = -0.5;
+
+    if Field.slope_gradient == 0
+        Vectors.Water.grass_transport = flat_water_matrix;
+    elseif Field.slope_gradient <= 10
+        Vectors.Water.grass_transport = flat_water_matrix+(Vectors.Water.grass_transport-flat_water_matrix)*Field.slope_gradient/10;
+    else
+        Vectors.Water.grass_transport = Vectors.Water.empty_transport;
+    end
+
+    % set wind direction
+    Vectors.Wind.grass_transport = rot90(Vectors.Wind.grass_transport, Vectors.Wind.direction);
+    Vectors.Wind.empty_transport = rot90(Vectors.Wind.empty_transport, Vectors.Wind.direction);
 end
