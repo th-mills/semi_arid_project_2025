@@ -1,0 +1,7 @@
+# Semiarid Vegetation
+This is the GitHub repository for a summer project on semiarid vegetation modelling, based on a paper by Stewart et al. (2014). Our work simplifies the process-based model above to a series of matrix-vector equations, making the mathematical structure of the model clearer, as well as allowing straightforward implementation in MATLAB.
+
+Details of the mathematical work can be found in the [project report](https://github.com/th-mills/semi_arid_project_2025/blob/main/Semiarid_Vegetation_Modelling_Report.pdf), along with findings regarding the model's behaviour and comparisons with the full model. The code used for this can be found in a [compact single file](https://github.com/th-mills/semi_arid_project_2025/blob/main/semiarid_matrix_model.m), or as a [modular format](https://github.com/th-mills/semi_arid_project_2025/tree/main/modular_simplified_model) aimed at scientific communication and accessibility. This includes an interface for easily altering parameters, and for outputting simulation data through graphs or movies.
+
+## Bibliography
+Stewart, J., Parsons, A.J., Wainwright, J., Okin, G.S., Bestelmeyer, B.T., Fredrickson, E.L. and Schlesinger, W.H. (2014), Modeling emergent patterns of dynamic desert ecosystems. Ecological Monographs, 84: 373-410. [https://doi.org/10.1890/12-1253.1](https://doi.org/10.1890/12-1253.1)
